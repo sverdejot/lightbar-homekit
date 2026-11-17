@@ -1,0 +1,29 @@
+mainmenu "Xiaomi lightbar Matter bridge"
+
+config LIGHTBAR_REMOTE_ID
+	hex "Remote id of the Xiaomi light bar remote (24 bit)"
+	range 0x0 0xffffff
+	default 0x4c1d5a
+	help
+	  Id of the original 2.4 GHz remote, captured with tools/sniffer.
+	  Alternatively keep the default and pair the bar to it with the
+	  `lamp pair` shell command. Can also be changed at runtime with
+	  `lamp id <hex>` (persisted in settings).
+
+# Thread: full thread device (router capable), as in the Nordic light bulb sample
+if NET_L2_OPENTHREAD
+
+choice OPENTHREAD_NORDIC_LIBRARY_CONFIGURATION
+	default OPENTHREAD_NORDIC_LIBRARY_FTD
+endchoice
+
+choice OPENTHREAD_DEVICE_TYPE
+	default OPENTHREAD_FTD
+endchoice
+
+endif # NET_L2_OPENTHREAD
+
+source "${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/config/nrfconnect/chip-module/Kconfig.features"
+source "${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/config/nrfconnect/chip-module/Kconfig.defaults"
+source "${ZEPHYR_NRF_MODULE_DIR}/samples/matter/common/src/Kconfig"
+source "Kconfig.zephyr"

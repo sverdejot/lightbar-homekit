@@ -1,0 +1,9 @@
+# nice!nano v2: Adafruit UF2 bootloader, no MCUboot, no external flash, no factory data
+choice BOOTLOADER
+	default BOOTLOADER_NONE
+endchoice
+
+config MATTER_FACTORY_DATA_GENERATE
+	default n
+
+source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"

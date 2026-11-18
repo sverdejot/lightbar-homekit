@@ -1,0 +1,23 @@
+# nice!nano v2 / Adafruit nRF52 UF2 bootloader layout.
+# 0x00000-0x26000: MBR + SoftDevice S140 area (bootloader needs the MBR)  -> never touch
+# 0xF4000-0x100000: UF2 bootloader + its settings                          -> never touch
+sd_reserved:
+  address: 0x0
+  end_address: 0x26000
+  region: flash_primary
+  size: 0x26000
+app:
+  address: 0x26000
+  end_address: 0xec000
+  region: flash_primary
+  size: 0xc6000
+settings_storage:
+  address: 0xec000
+  end_address: 0xf4000
+  region: flash_primary
+  size: 0x8000
+bootloader_reserved:
+  address: 0xf4000
+  end_address: 0x100000
+  region: flash_primary
+  size: 0xc000

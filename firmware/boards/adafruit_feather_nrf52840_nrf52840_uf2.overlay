@@ -1,0 +1,14 @@
+/* nice!nano v2: Feather UF2 board definition, LED on P0.15, no QSPI flash */
+/ {
+	chosen {
+		zephyr,entropy = &rng;
+	};
+};
+
+&led0 {
+	gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+};
+
+&qspi {
+	status = "disabled";
+};

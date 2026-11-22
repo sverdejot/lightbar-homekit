@@ -1,0 +1,72 @@
+[tools]
+python = "3.13"
+uv = "0.5.21"
+arduino-cli = "1.5.1"
+
+[env]
+_.python.venv = { path = ".venv", create = true }
+
+NCS_VERSION = "v2.9.3"
+NCS_DIR = "{{env.HOME}}/ncs/{{env.NCS_VERSION}}"
+NRFUTIL_TOOLCHAIN_MANAGER_VERSION = "0.15.0"
+BOARD = "adafruit_feather_nrf52840/nrf52840/uf2"
+
+ARDUINO_CORE = "adafruit:nrf52"
+ARDUINO_CORE_VERSION = "1.7.0"
+NRF_TO_NRF_VERSION = "1.2.13"
+ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS = "https://adafruit.github.io/arduino-board-index/package_adafruit_index.json"
+ARDUINO_DIRECTORIES_DATA = "{{config_root}}/.arduino/data"
+ARDUINO_DIRECTORIES_DOWNLOADS = "{{config_root}}/.arduino/downloads"
+ARDUINO_DIRECTORIES_USER = "{{config_root}}/.arduino/user"
+FQBN = "adafruit:nrf52:feather52840"
+UF2CONV = "{{env.ARDUINO_DIRECTORIES_DATA}}/packages/adafruit/hardware/nrf52/{{env.ARDUINO_CORE_VERSION}}/tools/uf2conv/uf2conv.py"
+
+PYSERIAL_VERSION = "3.5"
+ADAFRUIT_NRFUTIL_VERSION = "0.5.3.post16"
+
+LIGHTBAR_REMOTE_ID = "0x50F160"
+
+[tasks.setup]
+description = "Install every pinned dependency"
+depends = ["setup:python", "setup:arduino", "setup:ncs"]
+
+[tasks."setup:python"]
+description = "Install Python packages into .venv"
+run = "uv pip install --quiet pyserial==$PYSERIAL_VERSION adafruit-nrfutil==$ADAFRUIT_NRFUTIL_VERSION"
+
+[tasks."setup:arduino"]
+description = "Install the Arduino core and library into .arduino"
+run = [
+  "arduino-cli core update-index",
+  "arduino-cli core install $ARDUINO_CORE@$ARDUINO_CORE_VERSION",
+  "arduino-cli lib install nrf_to_nrf@$NRF_TO_NRF_VERSION",
+]
+
+[tasks."setup:ncs"]
+description = "Install the nRF Connect SDK toolchain and sources"
+run = """
+nrfutil install toolchain-manager=$NRFUTIL_TOOLCHAIN_MANAGER_VERSION --force
+nrfutil toolchain-manager install --ncs-version $NCS_VERSION
+[ -d "$NCS_DIR/.west" ] || nrfutil toolchain-manager launch --ncs-version $NCS_VERSION -- bash -c "
+  west init -m https://github.com/nrfconnect/sdk-nrf --mr $NCS_VERSION '$NCS_DIR' &&
+  cd '$NCS_DIR' && west update --narrow -o=--depth=1"
+"""
+
+[tasks.console]
+description = "Open the firmware USB shell"
+run = "python -m serial.tools.miniterm --eol CRLF \"$(ls /dev/cu.usbmodem* | head -1)\" 115200"
+
+[tasks."sniffer:sniff"]
+description = "Capture the original remote's id (sniffer firmware must be running)"
+dir = "tools/sniffer"
+run = "python lightbar.py sniff"
+
+[tasks."sniffer:ui"]
+description = "Web UI to try every lamp command (sniffer firmware must be running)"
+dir = "tools/sniffer"
+run = "python app.py"
+
+[tasks."sniffer:send"]
+description = "Send one command through the sniffer firmware, e.g. `mise run sniffer:send on`"
+dir = "tools/sniffer"
+run = "python lightbar.py"

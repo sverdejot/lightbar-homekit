@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Build the minimal Arduino stub used to reach serial DFU"
+#MISE dir="tools/dfu-stub/dfu_stub"
+#MISE sources=["*.ino"]
+#MISE outputs=["build/dfu_stub.uf2"]
+set -euo pipefail
+arduino-cli compile -b "$FQBN" --output-dir build . | grep "Sketch uses"
+python "$UF2CONV" -c -f 0xADA52840 -o build/dfu_stub.uf2 build/dfu_stub.ino.hex 2>/dev/null | tail -1

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Flash the sniffer firmware via UF2 (double-tap RST-GND first). Erases the Matter pairing!"
+#MISE depends=["sniffer:build"]
+set -euo pipefail
+mise run uf2:copy tools/sniffer/sniffer/build/sniffer.uf2

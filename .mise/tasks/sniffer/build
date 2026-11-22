@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Build the USB sniffer/controller firmware (Arduino)"
+#MISE dir="tools/sniffer/sniffer"
+#MISE sources=["*.ino"]
+#MISE outputs=["build/sniffer.uf2"]
+set -euo pipefail
+arduino-cli compile -b "$FQBN" --output-dir build . | grep "Sketch uses"
+python "$UF2CONV" -c -f 0xADA52840 -o build/sniffer.uf2 build/sniffer.ino.hex 2>/dev/null | tail -1

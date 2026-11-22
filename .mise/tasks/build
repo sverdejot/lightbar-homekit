@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#MISE description="Build the Matter firmware, check its flash range and package it for serial DFU"
+#USAGE flag "-p --pristine" help="Clean build"
+#USAGE flag "--remote-id <id>" help="Light bar remote id (default: LIGHTBAR_REMOTE_ID)"
+set -euo pipefail
+REMOTE_ID=${usage_remote_id:-$LIGHTBAR_REMOTE_ID}
+[[ $REMOTE_ID =~ ^0x[0-9A-Fa-f]{1,6}$ ]] || { echo "invalid remote id '$REMOTE_ID' (expected 0x + up to 6 hex digits)" >&2; exit 1; }
+cd firmware
+
+nrfutil toolchain-manager launch --ncs-version "$NCS_VERSION" --chdir "$PWD" -- bash -c "
+  source '$NCS_DIR/zephyr/zephyr-env.sh' &&
+  west build -d build -b '$BOARD' . ${usage_pristine:+-p always} -- -DCONFIG_LIGHTBAR_REMOTE_ID=$REMOTE_ID" \
+  >build.log 2>&1 || { grep -E "error|Error" build.log | head -20; echo "build failed, see firmware/build.log" >&2; exit 1; }
+grep -E "FLASH:|RAM:" build.log || true
+echo "remote id: $REMOTE_ID"
+
+# The image must stay inside the app partition (firmware/pm_static.yml)
+python - build/firmware/zephyr/zephyr.hex <<'PY'
+import sys
+lo, hi, base = None, 0, 0
+for line in open(sys.argv[1]):
+    n, addr, typ = int(line[1:3], 16), int(line[3:7], 16), int(line[7:9], 16)
+    if typ == 4: base = int(line[9:13], 16) << 16
+    elif typ == 2: base = int(line[9:13], 16) << 4
+    elif typ == 0 and n:
+        a = base + addr; lo = a if lo is None else min(lo, a); hi = max(hi, a + n)
+print(f"image range {lo:#x}-{hi:#x}")
+sys.exit(0 if lo >= 0x26000 and hi <= 0xec000 else "UNSAFE address range: do not flash")
+PY
+
+adafruit-nrfutil dfu genpkg --dev-type 0x0052 --sd-req 0x00B6 \
+  --application build/firmware/zephyr/zephyr.hex build/dfu.zip >/dev/null
+echo "dfu package: firmware/build/dfu.zip"

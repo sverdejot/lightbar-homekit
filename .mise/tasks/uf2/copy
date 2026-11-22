@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#MISE description="Copy a UF2 file to the board's bootloader drive (double-tap RST-GND first)"
+#USAGE arg "<file>" help="UF2 file (small images only: the Matter firmware is too big)"
+set -euo pipefail
+python - "$usage_file" <<'PY'
+import struct, sys
+d = open(sys.argv[1], 'rb').read()
+a = [struct.unpack('<I', d[i+12:i+16])[0] for i in range(0, len(d), 512)]
+lo, hi = min(a), max(a) + 256
+print(f"uf2 range {lo:#x}-{hi:#x}")
+sys.exit(0 if lo >= 0x26000 and hi <= 0xf4000 else "UNSAFE address range: not copying")
+PY
+DISK=$(diskutil list external | awk '/NICENANO/{print $NF}')
+[ -n "$DISK" ] || { echo "NICENANO drive not found: double-tap RST-GND" >&2; exit 1; }
+[ -d /Volumes/NICENANO ] || perl -e 'alarm 15; exec @ARGV' diskutil mount "$DISK" >/dev/null
+perl -e 'alarm 60; exec @ARGV' cp -X "$usage_file" /Volumes/NICENANO/ 2>/dev/null || true
+echo "copied $(basename "$usage_file")"

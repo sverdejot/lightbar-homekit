@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      remote-id:
+        description: Light bar remote id, e.g. 0x50F160 (see README, "Get the remote id")
+        required: true
+      tag:
+        description: Release tag (default v<firmware/VERSION>)
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      remote-id: ${{ inputs.remote-id }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          TAG=${TAG:-v$(awk -F' = ' '/^(VERSION_MAJOR|VERSION_MINOR|PATCHLEVEL) /{print $2}' firmware/VERSION | paste -sd.)}
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --target "$GITHUB_SHA" --notes-file - <<'NOTES'
+          | File | Use |
+          |------|-----|
+          | `lightbar-matter-<remote id>.zip` | Matter firmware, serial DFU package: `mise run flash --pkg <file>` |
+          | `lightbar-matter-<remote id>.hex` | same firmware as Intel HEX (SWD programmers) |
+          | `sniffer.uf2` | captures the remote id; copy to the bootloader drive |
+          | `dfu_stub.uf2` | gets the board from the UF2 bootloader into serial DFU; copy to the bootloader drive |
+
+          See the README for the full procedure.
+          NOTES
+          gh release upload "$TAG" dist/* --clobber

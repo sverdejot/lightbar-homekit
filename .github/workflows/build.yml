@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      remote-id:
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: jdx/mise-action@v5
+
+      - name: Install nrfutil
+        run: |
+          mkdir -p ~/.local/bin
+          curl -fsSL -o ~/.local/bin/nrfutil \
+            https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/x86_64-unknown-linux-gnu/nrfutil
+          chmod +x ~/.local/bin/nrfutil
+          echo ~/.local/bin >> "$GITHUB_PATH"
+
+      - id: config
+        run: |
+          echo "ncs=$(mise env --json | jq -r .NCS_VERSION)" >> "$GITHUB_OUTPUT"
+          echo "remote-id=${REMOTE_ID:-$(mise env --json | jq -r .LIGHTBAR_REMOTE_ID)}" >> "$GITHUB_OUTPUT"
+        env:
+          REMOTE_ID: ${{ inputs.remote-id }}
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/ncs
+          key: ncs-${{ runner.os }}-${{ steps.config.outputs.ncs }}
+
+      - run: mise run setup:python
+      - run: mise run setup:ncs
+      - run: mise run build --remote-id "$REMOTE_ID"
+        env:
+          REMOTE_ID: ${{ steps.config.outputs.remote-id }}
+
+      - name: Collect firmware
+        run: |
+          mkdir dist
+          cp firmware/build/dfu.zip "dist/lightbar-matter-$REMOTE_ID.zip"
+          cp firmware/build/firmware/zephyr/zephyr.hex "dist/lightbar-matter-$REMOTE_ID.hex"
+        env:
+          REMOTE_ID: ${{ steps.config.outputs.remote-id }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: firmware
+          path: dist/
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-log
+          path: firmware/build.log
+
+  tools:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+
+      - uses: actions/cache@v6
+        with:
+          path: .arduino
+          key: arduino-${{ runner.os }}-${{ hashFiles('.mise.toml') }}
+
+      - run: mise run setup:python
+      - run: mise run setup:arduino
+      - run: mise run sniffer:build
+      - run: mise run dfu-stub:build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tools
+          path: |
+            tools/sniffer/sniffer/build/sniffer.uf2
+            tools/dfu-stub/dfu_stub/build/dfu_stub.uf2
